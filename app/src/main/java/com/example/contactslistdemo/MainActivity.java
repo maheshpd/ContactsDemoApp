@@ -6,9 +6,11 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.location.Address;
+import android.location.Geocoder;
 import android.location.Location;
+import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
@@ -17,13 +19,9 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
-import com.google.android.gms.location.LocationServices;
 import com.karumi.dexter.Dexter;
 import com.karumi.dexter.PermissionToken;
 import com.karumi.dexter.listener.PermissionDeniedResponse;
@@ -31,22 +29,24 @@ import com.karumi.dexter.listener.PermissionGrantedResponse;
 import com.karumi.dexter.listener.PermissionRequest;
 import com.karumi.dexter.listener.single.PermissionListener;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
+import java.util.List;
+import java.util.Locale;
 
-public class MainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener, LocationListener {
+import androidx.appcompat.app.AppCompatActivity;
+
+public class MainActivity extends AppCompatActivity implements LocationListener {
     private static final int PICK_CONTACT =1121 ;
     private static final int PERMISSION_REQUEST_COARSE_LOCATION = 2212;
-    Button contactsBtn;
-    TextView phoneNo;
+    Button contactsBtn, getLocationBtn;
+    TextView phoneNo, locationTxt;
     boolean isGpsOn = false;
 
     private Location mLastLocation;
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
+
+    LocationManager locationManager;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -75,6 +75,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
         contactsBtn = findViewById(R.id.go_to_phone_contacts_btn);
         phoneNo = findViewById(R.id.phone_no_txt);
+        getLocationBtn = findViewById(R.id.getLocationBtn);
+        locationTxt = findViewById(R.id.locationText);
 
         contactsBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -146,13 +148,21 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 //        }
 
 
-        // check if GPS enabled
-        GPSTracker gpsTracker = new GPSTracker(this);
+        getLocationBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                getLocation();
+            }
+        });
+    }
 
-
-
-
-
+    private void getLocation() {
+        try {
+            locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000, 5, this);
+        } catch (SecurityException e) {
+            e.printStackTrace();
+        }
     }
 
 
@@ -167,20 +177,20 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         }
     }
 
-    private void findLatLong() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-
-        mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-        if (mLastLocation != null) {
-            final double latitude = mLastLocation.getLatitude();
-            final double longitude = mLastLocation.getLongitude();
-
-            Toast.makeText(this, "Latitude is " + latitude + " and Longitude is " + longitude, Toast.LENGTH_SHORT).show();
-        }
-    }
+//    private void findLatLong() {
+//        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+//                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+//            return;
+//        }
+//
+//        mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+//        if (mLastLocation != null) {
+//            final double latitude = mLastLocation.getLatitude();
+//            final double longitude = mLastLocation.getLongitude();
+//
+//            Toast.makeText(this, "Latitude is " + latitude + " and Longitude is " + longitude, Toast.LENGTH_SHORT).show();
+//        }
+//    }
 
     private void buildAlertMessageNoGps() {
         final AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -240,49 +250,32 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
     @Override
     public void onLocationChanged(Location location) {
+        locationTxt.setText("Latitude:" + location.getLatitude() + "\n Longitude: " + location.getLongitude());
 
-    }
+        try {
+            Geocoder geocoder = new Geocoder(this, Locale.getDefault());
+            List<Address> addresses = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
+            locationTxt.setText(locationTxt.getText() + "\n" + addresses.get(0).getAddressLine(0) + ", " +
+                    addresses.get(0).getAddressLine(1) + ", " + addresses.get(0).getAddressLine(2));
+        } catch (Exception e) {
 
-    @Override
-    public void onConnected(@Nullable Bundle bundle) {
-        mLocationRequest = new LocationRequest();
-        mLocationRequest.setInterval(1000);
-        mLocationRequest.setFastestInterval(1000);
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            return;
         }
-
-        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
     }
 
     @Override
-    public void onConnectionSuspended(int i) {
+    public void onStatusChanged(String s, int i, Bundle bundle) {
 
     }
 
     @Override
-    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+    public void onProviderEnabled(String s) {
 
     }
 
-//    @Override
-//    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
-//        switch (requestCode) {
-//            case PERMISSION_REQUEST_COARSE_LOCATION: {
-//                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-//                    Log.d(TAG, "coarse location permission granted");
-//                } else {
-//                    Intent intent = new Intent();
-//                    intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-//                    Uri uri = Uri.fromParts("package", getPackageName(), null);
-//                    intent.setData(uri);
-//                    startActivity(intent);
-//                }
-//            }
-//        }
-//    }
+    @Override
+    public void onProviderDisabled(String s) {
+
+    }
+//first comminsd
+
 }
